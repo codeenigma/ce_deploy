@@ -1,0 +1,50 @@
+<?php
+
+/**
+ * @file
+ * CE Deploy module.
+ * This install file contains hook_update_n handlers to script automated
+ * deployed updates.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function ce_deploy_install() {
+  variable_set('secure_permissions_active', 1);
+  ce_deploy_module_disable();
+  ce_deploy_module_enable();
+  ce_deploy_features();
+  secure_permissions_rebuild();
+  menu_rebuild();
+  registry_rebuild();
+  variable_del('site_name');
+  ce_deploy_features(TRUE);
+}
+
+/**
+ * Enable ctools related modules.
+ */
+function ce_deploy_update_7001() {
+  ce_deploy_module_disable();
+  ce_deploy_module_enable();
+  ce_deploy_features();
+}
+
+/**
+ * Enable ctools related modules.
+ */
+function ce_deploy_update_7002() {
+  ce_deploy_module_disable();
+  ce_deploy_module_enable();
+  ce_deploy_features(TRUE);
+}
+
+/**
+ * Test multisite deployment.
+ */
+function ce_deploy_update_7003() {
+  ce_deploy_module_disable();
+  ce_deploy_module_enable();
+  ce_deploy_features(TRUE);
+}

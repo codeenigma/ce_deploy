@@ -1,0 +1,171 @@
+<?php
+
+/*
+ * Disable unneeded modules.
+ */
+
+function ce_deploy_module_disable() {
+  // Modules to disable.
+  require_once 'includes/module.disable.inc';
+  if (!empty($disable)) {
+    foreach ($disable as $module) {
+      if (module_exists($module)) {
+        module_disable(array($module));
+      }
+    }
+    registry_rebuild();
+    menu_rebuild();
+  }
+}
+
+/*
+ * Uninstall unneeded modules.
+ */
+
+function ce_deploy_module_uninstall() {
+  // Modules to uninstall.
+  require_once 'includes/module.uninstall.inc';
+  if (!empty($uninstall)) {
+    foreach ($uninstall as $module) {
+      module_disable(array($module));
+      drupal_uninstall_modules(array($module));
+    }
+    registry_rebuild();
+    menu_rebuild();
+  }
+}
+
+/*
+ * Enable needed modules.
+ */
+
+function ce_deploy_module_enable() {
+  // Modules to enable.
+  require_once 'includes/module.enable.inc';
+  if (!empty($enable)) {
+    foreach ($enable as $module) {
+      if (!module_exists($module)) {
+        module_enable(array($module));
+      }
+    }
+    menu_rebuild();
+  }
+}
+
+/**
+ * Function for enabling all the sites features.
+ */
+function ce_deploy_features($revert = FALSE) {
+  require_once 'includes/features.inc';
+  if (!empty($features)) {
+    foreach ($features as $feature) {
+      module_enable(array($feature));
+//    features_install_modules(array($feature));
+    }
+    if ($revert) {
+      ce_deploy_features_revert($features);
+    }
+  }
+}
+
+function ce_deploy_secure_permissions_roles() {
+  module_load_include('inc', 'ce_deploy', 'secure_permissions_data');
+  $roles = secure_permissions_data_secure_permissions_roles();
+  if (!in_array('administrator', $roles)) {
+    array_unshift($roles, 'administrator');
+  }
+  return $roles;
+}
+
+/**
+ * Define site permissions in code.
+ *
+ */
+function ce_deploy_secure_permissions($role) {
+  if ($role == 'administrator') {
+    return array_keys(module_invoke_all('permission'));
+  }
+  module_load_include('inc', 'ce_deploy', 'secure_permissions_data');
+  return secure_permissions_data_secure_permissions($role);
+}
+
+/**
+ * Revert  features.
+ * @params array Names of features modules
+ */
+function ce_deploy_features_revert($feature_names) {
+  foreach ($feature_names as $feature_name) {
+    if (module_exists($feature_name)) {
+      $feature = features_load_feature($feature_name, TRUE);
+      foreach (array_keys($feature->info['features']) as $component) {
+        if (features_hook($component, 'features_revert')) {
+          features_revert(array($feature_name => array($component)));
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Delete fields
+ * @param array $field_names Array of field names.
+ */
+function ce_deploy_delete_field($field_names) {
+  foreach ($field_names as $field_name) {
+    field_delete_field($field_name);
+    while (count(field_read_fields(array('deleted' => 1), array('include_deleted' => 1))) > 0 || count(field_read_instances(array('deleted' => 1), array('include_deleted' => 1))) > 0) {
+      field_purge_batch(10);
+    }
+  }
+}
+
+/**
+ * Reverts views to theirs settings from code.
+ *
+ * @param array $view_names
+ *   The machine name of the views to revert.
+ */
+function ce_deploy_revert_views($view_names) {
+  foreach ($view_names as $view_name) {
+    $view = views_get_view($view_name);
+    // Check if the view is really overridden.
+    if ($view->type == t('Overridden')) {
+      // Revert the view.
+      $view->delete();
+      // Clear its cache.
+      ctools_include('object-cache');
+      ctools_object_cache_clear('view', $view->name);
+      // Give feedback.
+      watchdog('ce_deploy', 'Reverted the view %viewname', array('%viewname' => $view->name), WATCHDOG_INFO);
+    }
+  }
+}
+
+/**
+ * Creates a redirect.
+ */
+function ce_deploy_create_redirect($source, $dest, $language) {
+  $redirect = new stdClass();
+  module_invoke(
+    'redirect', 'object_prepare', $redirect, array(
+    'source' => $source,
+    'source_options' => array(),
+    'redirect' => $dest,
+    'redirect_options' => array(),
+    'language' => $language,
+    )
+  );
+  module_invoke('redirect', 'save', $redirect);
+}
+
+/**
+ * Creates an alias.
+ */
+function ce_deploy_create_alias($internal_path, $alias, $language) {
+  $alias = array(
+    'source' => $internal_path,
+    'alias' => $alias,
+    'language' => $language,
+  );
+  path_save($alias);
+}

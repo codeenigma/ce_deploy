@@ -1,0 +1,5 @@
+name = Code Enigma Deploy
+description = Module for common deployment tasks.
+core = 7.x
+
+dependencies[] = secure_permissions
