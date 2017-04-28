@@ -1,0 +1,15 @@
+<?php
+
+/**
+ * Delete field author to replace with taxonomy.
+ */
+function ce_deploy_install() {
+  ce_deploy_delete_all_field_instances('field_author');
+}
+
+/**
+ * Delete field author to replace with taxonomy.
+ */
+function ce_deploy_update_8201(&$sandbox) {
+  ce_deploy_delete_all_field_instances('field_author');
+}
