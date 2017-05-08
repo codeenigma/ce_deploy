@@ -26,3 +26,80 @@ function ce_deploy_delete_all_field_instances($field_name, $entity_type = 'node'
     field_purge_field($field);
   }
 }
+
+/**
+ * Create a taxonomy with terms from file stored in data/taxonomy folder.
+ *
+ * The structure of the yml must be:
+ * vocabulary: Test
+ * vid: test
+ * langcode: en (optional)
+ * description: Taxonomy test (optional)
+ * terms:
+ *   - name: Test 1
+ *     description: ....(optional)
+ *   - name: Test 2
+ *     description: ....(optional)
+ *   - ....
+ *
+ * @param string $filename
+ *   Name of file to import the taxonomy/terms.
+ *   File extension is not required.
+ */
+function ce_deploy_create_taxonomy($filename) {
+  $file_path = DRUPAL_ROOT . "/../data/taxonomy/" . $filename . ".yml";
+  if (file_exists($file_path)) {
+    // Read YAML file to get attributes.
+    $taxonomy_file = Yaml::decode(file_get_contents($file_path));
+    if ($taxonomy_file) {
+      if (isset($taxonomy_file['vocabulary']) && isset($taxonomy_file['vid'])) {
+        // Check if vocabulary already exists.
+        $vocabularies = Vocabulary::loadMultiple();
+        if (!isset($vocabularies[$taxonomy_file['vid']])) {
+          $vocabulary_values = [
+            'vid' => $taxonomy_file['vid'],
+            'machine_name' => $taxonomy_file['vid'],
+            'name' => $taxonomy_file['vocabulary'],
+          ];
+
+          // Add langcode and description if exists.
+          if (isset($taxonomy_file['langcode'])) {
+            $vocabulary_values['langcode'] = $taxonomy_file['langcode'];
+          }
+
+          if (isset($taxonomy_file['description'])) {
+            $vocabulary_values['description'] = $taxonomy_file['description'];
+          }
+
+          $vocabulary = Vocabulary::create($vocabulary_values);
+          $vocabulary->save();
+        }
+
+        // Add terms to the vocabulary.
+        if (isset($taxonomy_file['terms']) && is_array($taxonomy_file['terms'])) {
+          foreach ($taxonomy_file['terms'] as $term) {
+            if (isset($term['name'])) {
+              $term_values = [
+                'name' => $term['name'],
+                'vid' => $taxonomy_file['vid'],
+              ];
+
+              // Add langcode if exists.
+              if (isset($taxonomy_file['langcode'])) {
+                $term_values['langcode'] = $taxonomy_file['langcode'];
+              }
+
+              // Add description if exists.
+              if (isset($term['description'])) {
+                $term_values['description'] = $term['description'];
+              }
+
+              $new_term = Term::create($term_values);
+              $new_term->save();
+            }
+          }
+        }
+      }
+    }
+  }
+}
