@@ -66,6 +66,10 @@ function ce_deploy_create_taxonomy($filename) {
           if (isset($taxonomy_file['langcode'])) {
             $vocabulary_values['langcode'] = $taxonomy_file['langcode'];
           }
+          
+          if (isset($taxonomy_file['uuid'])) {
+            $vocabulary_values['uuid'] = $taxonomy_file['uuid'];
+          }
 
           if (isset($taxonomy_file['description'])) {
             $vocabulary_values['description'] = $taxonomy_file['description'];
@@ -87,10 +91,6 @@ function ce_deploy_create_taxonomy($filename) {
               // Add langcode if exists.
               if (isset($taxonomy_file['langcode'])) {
                 $term_values['langcode'] = $taxonomy_file['langcode'];
-              }
-              
-              if (isset($taxonomy_file['uuid'])) {
-                $vocabulary_values['uuid'] = $taxonomy_file['uuid'];
               }
 
               // Add description if exists.
