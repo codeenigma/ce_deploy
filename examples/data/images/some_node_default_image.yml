@@ -1,0 +1,10 @@
+filename: some_node_default_image.jpg
+# image_file_directory has to be relative to where this file is.
+image_file_directory: node_files
+uuid: {{desired uuid after import in remote env (e.g: uuid exported in a config .yml file}}
+langcode: en
+uid: 1
+uri: desired_destination_uri.jpg
+status: 1
+destination_scheme: public
+destination_directory: default_images
