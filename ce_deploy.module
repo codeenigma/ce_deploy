@@ -66,7 +66,7 @@ function ce_deploy_create_taxonomy($filename) {
           if (isset($taxonomy_file['langcode'])) {
             $vocabulary_values['langcode'] = $taxonomy_file['langcode'];
           }
-          
+
           if (isset($taxonomy_file['uuid'])) {
             $vocabulary_values['uuid'] = $taxonomy_file['uuid'];
           }
@@ -106,4 +106,73 @@ function ce_deploy_create_taxonomy($filename) {
       }
     }
   }
+}
+
+/**
+ * Ensures icon files for ckeditor embed buttons are available.
+ *
+ * WHY: Embed icons are non-exportable. There's a pending patch in d.org to make
+ * it possible to reference them by actual path, and not only file_managed
+ * (uuid). For the time being, custom solution is used.
+ *
+ * This function does 2 things:
+ *
+ * 	1.- Scans the available files for the buttons specified in $buttons_map, and
+ *  moves them to the directory where the embed module expects them. The files
+ *  are meant to be in the "images/embed_icons" of the ce_deploy module.
+ *
+ * 	2.- Then loads the available embed buttons, and checks the ones specified
+ *  in the $button_map array. For those, checks if there's an existinf file. If
+ *  there is, it does nothing. If there isn't, it picks the specified file from
+ *  the map array, creates a File entity in the database, and assigns to it the
+ *  icon uuid expected by the button entity.
+ *
+ * @link https://www.drupal.org/project/embed/issues/2824110.
+ */
+function ce_deploy_ensure_embed_buttons_icons() {
+	$buttons_map = [
+		'youtube_video' => 'youtube_icon_ckeditor.png',
+		'file_button' => 'file_icon_ckeditor.png',
+	];
+
+	$source = drupal_get_path('module', 'ce_deploy') . '/images/embed_icons';
+	$embed_config = \Drupal::config('embed.settings');
+	$destination = $embed_config->get('file_scheme') . '://' . $embed_config->get('upload_directory') . '/';
+	file_prepare_directory($destination, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
+
+	$files = file_scan_directory($source, '/.*\.(svg|png|jpg|jpeg|gif)$/');
+	foreach ($files as $file) {
+		// Copy icon files to destination, if they don't exist already.
+		if (!file_exists($destination . DIRECTORY_SEPARATOR . $file->filename)) {
+			file_unmanaged_copy($file->uri, $destination, FILE_EXISTS_ERROR);
+		}
+	}
+
+	/* @var \Drupal\embed\Entity\EmbedButton[] $embed_buttons */
+	$embed_buttons = \Drupal\embed\Entity\EmbedButton::loadMultiple();
+
+	foreach ($embed_buttons as $button) {
+		// Process only icons defined above.
+		if (!isset($buttons_map[$button->id()])) {
+			\Drupal::logger('ctbto_core')->info('Button not set in custom map. Skipping icon creation: %button', ['%button' => $button->id()]);
+			continue;
+		}
+
+		/* @var \Drupal\file\Entity\File $icon_file */
+		if ($icon_file = $button->getIconFile()) {
+			\Drupal::logger('ctbto_core')->info('Button already has an existing file. Skipping. Button id: %button', ['%button' => $button->id()]);
+			continue;
+		}
+
+		$icon_file = \Drupal\file\Entity\File::create([
+			'uuid' => $button->icon_uuid,
+			'filename'  => $buttons_map[$button->id()],
+			'langcode' => 'en',
+			'uid' => 1,
+			'uri' => $destination . $buttons_map[$button->id()],
+			'status' => 1,
+		]);
+		$icon_file->save();
+		\Drupal::logger('ctbto_core')->info('Created file for Button %button', ['%button' => $button->id()]);
+	}
 }
