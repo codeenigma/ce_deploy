@@ -66,7 +66,7 @@ function ce_deploy_create_taxonomy($filename) {
           if (isset($taxonomy_file['langcode'])) {
             $vocabulary_values['langcode'] = $taxonomy_file['langcode'];
           }
-          
+
           if (isset($taxonomy_file['uuid'])) {
             $vocabulary_values['uuid'] = $taxonomy_file['uuid'];
           }
@@ -106,4 +106,46 @@ function ce_deploy_create_taxonomy($filename) {
       }
     }
   }
+}
+
+/**
+ * Creates block contents from .yml files.
+ *
+ * @param string $filename
+ *  The name of the .yml file to get data from (under root://data/block/).
+ *
+ * @throws \Drupal\Core\Entity\EntityStorageException
+ */
+function ce_deploy_create_block($filename) {
+	$file_path = DRUPAL_ROOT . "/../data/block/" . $filename . ".yml";
+
+	if (file_exists($file_path)) {
+		// Read YAML file to get attributes.
+		$block_file = Yaml::decode(file_get_contents($file_path));
+		if ($block_file) {
+			foreach ($block_file['blocks'] as $block_entry) {
+				$uuid = $block_entry['uuid'];
+
+				$block = \Drupal::service('entity.repository')
+												->loadEntityByUuid('block_content', $uuid);
+
+				// Existing blocks are not imported again.
+				if ($block) {
+					continue;
+				}
+
+				$values = [
+					'type' => $block_file['bundle'],
+					'info' => $block_entry['title'],
+					'uuid' => $block_entry['uuid'],
+					'status' => 1,
+				];
+
+				$block = \Drupal\block_content\Entity\BlockContent::create($values);
+				$block->body->value = $block_entry['value'];
+				$block->body->format = $block_entry['format'];
+				$block->save();
+			}
+		}
+	}
 }
