@@ -66,7 +66,7 @@ function ce_deploy_create_taxonomy($filename) {
           if (isset($taxonomy_file['langcode'])) {
             $vocabulary_values['langcode'] = $taxonomy_file['langcode'];
           }
-          
+
           if (isset($taxonomy_file['uuid'])) {
             $vocabulary_values['uuid'] = $taxonomy_file['uuid'];
           }
@@ -106,4 +106,84 @@ function ce_deploy_create_taxonomy($filename) {
       }
     }
   }
+}
+
+/**
+ * Deploys an image based on info from a .yml descriptor
+ *
+ * @param string $image_descriptor
+ *  The .yml filename.
+ * @param string (Optional) $directory
+ *  The directory where the .yml file can be found.
+ *  Defaults to {repo-root}/data/images/.
+ *
+ * @return \Drupal\Core\Entity\EntityInterface|static
+ * @throws \Drupal\Core\Entity\EntityStorageException
+ *
+ * @see examples/data/images/some_node_default_image.yml for an example of an
+ * image file descriptor.
+ */
+function ce_deploy_ensure_image_file($image_descriptor, $directory = null) {
+	$source_dir = $directory ?? DRUPAL_ROOT . "/../data/images/";
+	$source_image = $source_dir . $image_descriptor;
+
+	if (!file_exists($source_image)) {
+		throw new \InvalidArgumentException(sprintf('%s image file does not exist under {root}/data/images/', $image_descriptor));
+	}
+
+	$image_yaml = Yaml::decode(file_get_contents($source_image));
+	$uuid = $image_yaml['uuid'];
+
+	// Ensure file does not exist already in DB.
+	$connection = Database::getConnection();
+	$file = $connection->query("SELECT * FROM {file_managed} f
+    WHERE f.uuid = :uuid", [':uuid' => $uuid])
+										 ->fetchAssoc();
+
+	if ($file) {
+		\Drupal::logger('ctbto_deploy')->info('File already exists. Skipping. UUID: %uuid', ['%uuid' => $uuid]);
+		throw new \Exception("There is an existing file with the provided UUID in the database");
+	}
+
+	$filename = $image_yaml['filename'];
+	$dest_scheme = $image_yaml['destination_scheme'];
+	$dest_directory = $image_yaml['destination_directory'];
+	$image_file_directory = $image_yaml['image_file_directory'] ?? '';
+	$uri = $image_yaml['uri'];
+
+	$destination = $dest_scheme . '://' . $dest_directory . '/';
+	if (file_exists($destination . DIRECTORY_SEPARATOR . $uri)) {
+		throw new \Exception("The desired URI is already used by another file");
+	}
+
+	file_prepare_directory($destination, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
+	$image_file_dir = $source_dir . $image_file_directory;
+	$files = file_scan_directory($image_file_dir, '/.*\.(svg|png|jpg|jpeg|gif)$/');
+	foreach ($files as $file) {
+		if ($file->filename === $filename) {
+			$imported_file = $file;
+		}
+	}
+
+	if (empty($imported_file)) {
+		throw new \Exception("No file found with the filename specified in the .yml file");
+	}
+
+	if (file_unmanaged_copy($imported_file->uri, $destination, FILE_EXISTS_ERROR)) {
+		$file = \Drupal\file\Entity\File::create([
+			'uuid' => $uuid,
+			'filename'  => $filename,
+			'langcode' => $image_yaml['langcode'],
+			'uid' => $image_yaml['uid'],
+			'uri' => $destination . $uri,
+			'status' => $image_yaml['status'],
+			'filesize' => $imported_file->filesize,
+		]);
+		$file->save();
+		\Drupal::logger('ctbto_deploy')->info('Created file with UUID %uuid', ['%uuid' => $uuid]);
+		return $file;
+	}
+	else {
+		\Drupal::logger('ctbto_deploy')->error('There was a problem creating the file with UUID %uuid', ['%uuid' => $uuid]);
+	}
 }
