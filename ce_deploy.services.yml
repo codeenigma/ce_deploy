@@ -1,0 +1,5 @@
+services:
+  ctbto_core.twig.template_field_utils:
+    class: Drupal\ce_deploy\Template\FieldUtilsExtension
+    tags:
+      - { name: twig.extension }
